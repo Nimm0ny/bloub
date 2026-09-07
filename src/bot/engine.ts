@@ -13,7 +13,7 @@ import {
   type Silhouette
 } from './shape'
 import { STATE_BY_ID, type Pose, type StateDef, type StateId } from './states'
-import { projectParts, type PartDef, type RenderedPart } from './parts'
+import { projectParts, type PartDef, type PartPose, type RenderedPart } from './parts'
 
 export interface RenderedEye {
   d: string
@@ -159,6 +159,7 @@ export class BotEngine {
   /** duree de rattrapage en cours ; voir `LOOK_MORPH`, sa valeur par defaut */
   private lookMorph = 0.24
   private parts: PartDef[] = []
+  private partPoses: Record<string, PartPose> = {}
 
   /**
    * Pieces secondaires. Pas de morph : ce n'est pas une mesure video, c'est un
@@ -166,6 +167,11 @@ export class BotEngine {
    */
   setParts(parts: PartDef[]) {
     this.parts = parts
+  }
+
+  /** Pose animee des pieces, par-dessus le bind. Vide = bind seul. */
+  setPartPoses(poses: Record<string, PartPose> | null) {
+    this.partPoses = poses ?? {}
   }
 
   /** duree du morph quand on change la forme du corps */
@@ -564,7 +570,8 @@ export class BotEngine {
             scale: R,
             offX,
             offY,
-            alpha: pose.bodyAlpha
+            alpha: pose.bodyAlpha,
+            poses: this.partPoses
           })
         : { back: [] as RenderedPart[], front: [] as RenderedPart[] }
 

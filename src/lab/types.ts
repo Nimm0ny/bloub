@@ -1,5 +1,5 @@
 import type { Look } from '@/bot/engine'
-import type { PartDef } from '@/bot/parts'
+import type { PartDef, PartPose } from '@/bot/parts'
 import type { HeadGaze } from '@/bot/face'
 import type { ShapeId } from '@/bot/skins'
 import type { EyeCfg, StateId } from '@/bot/states'
@@ -43,11 +43,37 @@ export interface CharacterDef {
  * la silhouette, le visage et le decor. Ici on decompose pour pouvoir composer
  * sans retoucher `states.ts`.
  */
+export type PartAxis = 'x' | 'y' | 'z'
+
 export type MotionPrimitive =
   | { type: 'state'; state: StateId; duration?: number }
   | { type: 'expression'; id: string; duration?: number }
   | { type: 'look'; yaw: number; pitch: number; mix?: number; duration?: number }
   | { type: 'hold'; duration: number }
+  | {
+      type: 'part.rotate'
+      part: string
+      axis: PartAxis
+      from: number
+      to: number
+      duration?: number
+    }
+  | {
+      type: 'part.translate'
+      part: string
+      axis: PartAxis
+      from: number
+      to: number
+      duration?: number
+    }
+  | {
+      type: 'part.oscillate'
+      part: string
+      axis: PartAxis
+      center: number
+      amplitude: number
+      frequency: number
+    }
 
 export interface MotionDef {
   id: string
@@ -96,6 +122,7 @@ export interface MotionSample {
   state: StateId
   expressionId: string | null
   look: Look | null
+  parts: Record<string, PartPose>
 }
 
 export type LabTab = 'pose' | 'import' | 'motion' | 'agent'

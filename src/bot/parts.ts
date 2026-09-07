@@ -34,9 +34,26 @@ export interface PartAnchor {
 export interface PartDef {
   id: string
   primitive: PrimitiveDef
-  transform: PartTransform
+  /**
+   * Pose de BIND : la structure du personnage, pas l'animation.
+   * `transform` est accepte a la lecture (JSON ancien) et recopie ici.
+   */
+  bindTransform: PartTransform
   anchor?: PartAnchor
   render: { depthMode: 'auto' | 'front' | 'back' }
+}
+
+/**
+ * Pose animee, par-dessus le bind. `rotation` est ABSOLUE (remplace l'axe
+ * fourni) ; `position` est un DECALAGE ajoute au bind — c'est ce qui permet
+ * « la main sur la sphere, puis 0,12 vers l'exterieur » sans retoucher le
+ * personnage.
+ */
+export interface PartPose {
+  position?: Vec3
+  rotation?: Vec3
+  scale?: Vec3
+  alpha?: number
 }
 
 export interface RenderedPart {
@@ -64,7 +81,7 @@ export const KIRBY_PARTS: PartDef[] = [
       type: 'ellipsoid',
       size: [108.11015625 / 2 / BS_R, 81.6 / 2 / BS_R, 81.6 / 2 / BS_R]
     },
-    transform: {
+    bindTransform: {
       position: [-103.30437876033604 / BS_R, 30.4449714479682 / BS_R, -9.784765625 / BS_R],
       rotation: [0, 0, -14.843359375],
       scale: [1, 1, 1]
@@ -77,7 +94,7 @@ export const KIRBY_PARTS: PartDef[] = [
       type: 'ellipsoid',
       size: [108.11015625 / 2 / BS_R, 81.6 / 2 / BS_R, 81.6 / 2 / BS_R]
     },
-    transform: {
+    bindTransform: {
       position: [98.15429266544173 / BS_R, 32.55003025735345 / BS_R, -9.784765625 / BS_R],
       rotation: [0, 0, 15.175],
       scale: [1, 1, 1]
@@ -96,7 +113,7 @@ export function defaultPart(kind: PrimitiveDef['type'] = 'ellipsoid', id = 'part
   return {
     id,
     primitive,
-    transform: {
+    bindTransform: {
       position: [0.85, 0.2, -0.08],
       rotation: [0, 0, 0],
       scale: [1, 1, 1]
@@ -119,10 +136,10 @@ export function cloneParts(parts: PartDef[]): PartDef[] {
         : p.primitive.type === 'capsule'
           ? { ...p.primitive }
           : { type: 'radial', radii: [...p.primitive.radii] },
-    transform: {
-      position: [...p.transform.position],
-      rotation: [...p.transform.rotation],
-      scale: [...p.transform.scale]
+    bindTransform: {
+      position: [...p.bindTransform.position],
+      rotation: [...p.bindTransform.rotation],
+      scale: [...p.bindTransform.scale]
     },
     anchor: p.anchor
       ? {
@@ -246,12 +263,37 @@ function projectRadial(
   return closedPath(toPoints(sil, engineScale))
 }
 
-function worldPosition(part: PartDef): Vec3 {
+/**
+ * Compose bind × pose × ancre. L'ancre pose un point sur la sphere du corps ;
+ * le bind (plus la pose) s'exprime ALORS dans ce reperage, au lieu de remplacer
+ * la position.
+ */
+export function composePart(
+  part: PartDef,
+  pose?: PartPose
+): { position: Vec3; rotation: Vec3; scale: Vec3; alpha: number } {
+  const bind = part.bindTransform
+  const rotation: Vec3 = [
+    bind.rotation[0] + (pose?.rotation?.[0] ?? 0),
+    bind.rotation[1] + (pose?.rotation?.[1] ?? 0),
+    bind.rotation[2] + (pose?.rotation?.[2] ?? 0)
+  ]
+  const scale: Vec3 = [
+    bind.scale[0] * (pose?.scale?.[0] ?? 1),
+    bind.scale[1] * (pose?.scale?.[1] ?? 1),
+    bind.scale[2] * (pose?.scale?.[2] ?? 1)
+  ]
+  let position: Vec3 = [
+    bind.position[0] + (pose?.position?.[0] ?? 0),
+    bind.position[1] + (pose?.position?.[1] ?? 0),
+    bind.position[2] + (pose?.position?.[2] ?? 0)
+  ]
   if (part.anchor?.spherical) {
     const s = part.anchor.spherical
-    return sphericalPoint(s.yaw, s.pitch, s.radius)
+    const ap = sphericalPoint(s.yaw, s.pitch, s.radius)
+    position = [ap[0] + position[0], ap[1] + position[1], ap[2] + position[2]]
   }
-  return part.transform.position
+  return { position, rotation, scale, alpha: pose?.alpha ?? 1 }
 }
 
 export interface ProjectPartsOpts {
@@ -259,11 +301,15 @@ export interface ProjectPartsOpts {
   offX: number
   offY: number
   alpha: number
+  poses?: Record<string, PartPose>
 }
 
 /**
  * Projette les pieces et les separe devant / derriere le corps, d'apres Z
  * (vers le spectateur). Mode `front` / `back` force la couche.
+ *
+ * Capsule : projection 2D (enveloppe de deux cercles). La rotation X/Y n'est
+ * pas une vraie capsule 3D — seul Z est fidele. `sz` entre dans le rayon.
  */
 export function projectParts(
   parts: PartDef[],
@@ -271,16 +317,16 @@ export function projectParts(
 ): { back: RenderedPart[]; front: RenderedPart[] } {
   const back: RenderedPart[] = []
   const front: RenderedPart[] = []
-  const { scale, offX, offY, alpha } = opts
+  const { scale, offX, offY, alpha, poses } = opts
 
   for (const part of parts) {
-    const pos = worldPosition(part)
-    const sx = part.transform.scale[0]
-    const sy = part.transform.scale[1]
-    const sz = part.transform.scale[2]
-    const cx = (pos[0] + offX) * scale
-    const cy = (pos[1] + offY) * scale
-    const rot = part.transform.rotation
+    const world = composePart(part, poses?.[part.id])
+    const sx = world.scale[0]
+    const sy = world.scale[1]
+    const sz = world.scale[2]
+    const cx = (world.position[0] + offX) * scale
+    const cy = (world.position[1] + offY) * scale
+    const rot = world.rotation
     let path = ''
     const prim = part.primitive
     if (prim.type === 'ellipsoid') {
@@ -292,19 +338,32 @@ export function projectParts(
         scale
       )
     } else if (prim.type === 'capsule') {
-      path = projectCapsule(prim.radius * Math.min(sx, sy), prim.length * sx, rot, cx, cy, scale)
+      path = projectCapsule(
+        prim.radius * Math.min(sx, sy, sz),
+        prim.length * sx,
+        rot,
+        cx,
+        cy,
+        scale
+      )
     } else {
-      path = projectRadial(prim.radii, rot, pos, part.transform.scale, scale)
+      path = projectRadial(
+        prim.radii,
+        rot,
+        [world.position[0] + offX, world.position[1] + offY, world.position[2]],
+        world.scale,
+        scale
+      )
     }
     if (!path) continue
     const rendered: RenderedPart = {
       id: part.id,
       path,
-      depth: pos[2],
-      alpha
+      depth: world.position[2],
+      alpha: alpha * world.alpha
     }
     const mode = part.render.depthMode
-    const behind = mode === 'back' || (mode === 'auto' && pos[2] < 0)
+    const behind = mode === 'back' || (mode === 'auto' && world.position[2] < 0)
     if (behind) back.push(rendered)
     else front.push(rendered)
   }
@@ -320,7 +379,7 @@ export function parsePart(raw: unknown): PartDef | null {
   if (typeof o.id !== 'string' || !o.id) return null
   const prim = parsePrimitive(o.primitive)
   if (!prim) return null
-  const tr = o.transform
+  const tr = o.bindTransform ?? o.transform
   if (typeof tr !== 'object' || tr === null) return null
   const t = tr as Record<string, unknown>
   const position = vec3(t.position)
@@ -336,7 +395,7 @@ export function parsePart(raw: unknown): PartDef | null {
   const part: PartDef = {
     id: o.id,
     primitive: prim,
-    transform: { position, rotation, scale },
+    bindTransform: { position, rotation, scale },
     render: { depthMode }
   }
   const anc = o.anchor

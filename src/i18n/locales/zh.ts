@@ -180,6 +180,8 @@ const zh: typeof fr = {
     jsonError: '无法读取 JSON：这不是角色定义。',
     primitives: '原语',
     addState: '添加状态',
+    addPartStep: '添加手势',
+    partMotionHint: '手势叠在状态上，针对一只手。两只手可以同时动。',
     duration: '时长',
     sendToTimeline: '在动画中打开',
     play: '播放',
@@ -197,7 +199,11 @@ const zh: typeof fr = {
       speak: '说话',
       error: '出错',
       done: '完成',
-      sleep: '休眠'
+      sleep: '休眠',
+      wave: '挥手',
+      hand: '托腮',
+      celebrate: '庆祝',
+      clap: '拍手'
     },
     events: {
       idle: '空闲',
@@ -213,7 +219,10 @@ const zh: typeof fr = {
       state: '状态',
       expression: '表情',
       look: '视线',
-      hold: '停留'
+      hold: '停留',
+      rotate: '旋转',
+      translate: '位移',
+      oscillate: '摆动'
     }
   },
 

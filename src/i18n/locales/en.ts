@@ -179,6 +179,8 @@ const en: typeof fr = {
     jsonError: 'Unreadable JSON: not a character.',
     primitives: 'Primitives',
     addState: 'Add a state',
+    addPartStep: 'Add a gesture',
+    partMotionHint: 'Gestures target one hand, on top of the state. Both arms can move at once.',
     duration: 'Duration',
     sendToTimeline: 'Open in Animations',
     play: 'Play',
@@ -196,7 +198,11 @@ const en: typeof fr = {
       speak: 'Speak',
       error: 'Error',
       done: 'Done',
-      sleep: 'Sleep'
+      sleep: 'Sleep',
+      wave: 'Wave',
+      hand: 'Hand to face',
+      celebrate: 'Celebrate',
+      clap: 'Clap'
     },
     events: {
       idle: 'Idle',
@@ -212,7 +218,10 @@ const en: typeof fr = {
       state: 'State',
       expression: 'Expression',
       look: 'Look',
-      hold: 'Hold'
+      hold: 'Hold',
+      rotate: 'Rotation',
+      translate: 'Translation',
+      oscillate: 'Oscillation'
     }
   },
 

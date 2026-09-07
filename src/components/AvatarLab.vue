@@ -36,7 +36,8 @@ import {
   MAX_PARTS,
   cloneParts,
   defaultPart,
-  type PartDef
+  type PartDef,
+  type PartPose
 } from '@/bot/parts'
 import { AGENT_EVENTS, DEFAULT_VSM, stepVsm, visualOf } from '@/lab/vsm'
 
@@ -60,6 +61,9 @@ const liveExpression = defineModel<BotExpression | null>('liveExpression', { def
 const liveLook = defineModel<Look | null>('liveLook', { default: null })
 const liveRadii = defineModel<number[] | null>('liveRadii', { default: null })
 const liveParts = defineModel<PartDef[] | null>('liveParts', { default: null })
+const livePartPoses = defineModel<Record<string, PartPose> | null>('livePartPoses', {
+  default: null
+})
 const labCycle = defineModel<Block[] | null>('labCycle', { default: null })
 const playing = defineModel<boolean>('playing', { required: true })
 
@@ -84,6 +88,8 @@ const selectedMotion = computed(
   () => motions.value.find((m) => m.id === selectedMotionId.value) ?? motions.value[0]!
 )
 const addState = ref<StateId>('idle')
+const addPartId = ref('arm-right')
+const addPartKind = ref<'part.oscillate' | 'part.rotate' | 'part.translate'>('part.oscillate')
 const selectedPart = ref(0)
 const visualId = ref(DEFAULT_VSM.initial)
 
@@ -94,7 +100,21 @@ const PREVIEW_AT = 1
 
 const R = LAB_RANGE
 
-type AgentMotionId = 'rest' | 'notice' | 'think' | 'write' | 'speak' | 'error' | 'done' | 'sleep'
+type AgentMotionId =
+  | 'rest'
+  | 'notice'
+  | 'think'
+  | 'write'
+  | 'speak'
+  | 'error'
+  | 'done'
+  | 'sleep'
+  | 'wave'
+  | 'hand'
+  | 'celebrate'
+  | 'clap'
+
+const KIRBY_MOTION_IDS = ['wave', 'hand', 'celebrate', 'clap'] as const
 
 function motionLabel(id: string) {
   if (id.startsWith('state-')) return t(`states.${id.slice(6) as StateId}`)
@@ -123,6 +143,7 @@ function pushLive() {
   liveLook.value = lookFromDraft(draft)
   liveRadii.value = draft.radii
   liveParts.value = cloneParts(draft.parts)
+  livePartPoses.value = null
 }
 
 watch(
@@ -145,6 +166,7 @@ watch([() => props.block, () => props.elapsed, selectedMotion, playing, tab], ()
     if (expr) liveExpression.value = expr
   }
   if (sample.look) liveLook.value = sample.look
+  livePartPoses.value = sample.parts
 })
 
 watch(tab, (now) => {
@@ -193,12 +215,12 @@ const currentPart = computed(() => draft.parts[selectedPart.value] ?? null)
 
 function setPartPos(axis: 0 | 1 | 2, value: number) {
   const p = currentPart.value
-  if (p) p.transform.position[axis] = value
+  if (p) p.bindTransform.position[axis] = value
 }
 
 function setPartRotZ(value: number) {
   const p = currentPart.value
-  if (p) p.transform.rotation[2] = value
+  if (p) p.bindTransform.rotation[2] = value
 }
 
 function setEllipsoidSize(axis: 0 | 1 | 2, value: number) {
@@ -310,12 +332,53 @@ function playMotion(def: MotionDef) {
 function stopMotion() {
   playing.value = false
   labCycle.value = null
+  livePartPoses.value = null
   pushLive()
 }
 
 function addPrimitive() {
   const m = selectedMotion.value
   m.primitives = [...m.primitives, { type: 'state', state: addState.value }]
+}
+
+function partTargets() {
+  const ids = draft.parts.map((p) => p.id)
+  if (!ids.includes('arm-left')) ids.push('arm-left')
+  if (!ids.includes('arm-right')) ids.push('arm-right')
+  return ids
+}
+
+function addPartPrimitive() {
+  const m = selectedMotion.value
+  const part = addPartId.value
+  const extra =
+    addPartKind.value === 'part.oscillate'
+      ? {
+          type: 'part.oscillate' as const,
+          part,
+          axis: 'z' as const,
+          center: 0,
+          amplitude: part === 'arm-left' ? -22 : 22,
+          frequency: 2.2
+        }
+      : addPartKind.value === 'part.rotate'
+        ? {
+            type: 'part.rotate' as const,
+            part,
+            axis: 'z' as const,
+            from: 0,
+            to: part === 'arm-left' ? -40 : 40,
+            duration: 0.35
+          }
+        : {
+            type: 'part.translate' as const,
+            part,
+            axis: 'y' as const,
+            from: 0,
+            to: -0.16,
+            duration: 0.35
+          }
+  m.primitives = [...m.primitives, extra]
 }
 
 function removePrimitive(index: number) {
@@ -334,10 +397,19 @@ function movePrimitive(index: number, dir: -1 | 1) {
   m.primitives = next
 }
 
+function primLabel(type: string) {
+  const short = type.startsWith('part.') ? type.slice(5) : type
+  return t(`lab.prim.${short as 'state'}`)
+}
+
+function primitiveDuration(p: { type: string; duration?: number }) {
+  return 'duration' in p ? (p.duration ?? '') : ''
+}
+
 function setPrimitiveDuration(index: number, seconds: number) {
   const p = selectedMotion.value.primitives[index]
-  if (!p || p.type === 'look') return
-  p.duration = seconds
+  if (!p || p.type === 'look' || p.type === 'part.oscillate') return
+  if ('duration' in p) p.duration = seconds
 }
 
 function fire(event: (typeof AGENT_EVENTS)[number]) {
@@ -470,7 +542,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
       </ul>
       <div v-if="currentPart" class="mt-3 flex flex-col gap-3">
         <LabSlider
-          :model-value="currentPart.transform.position[0] ?? 0"
+          :model-value="currentPart.bindTransform.position[0] ?? 0"
           :label="t('lab.partX')"
           :min="-1.6"
           :max="1.6"
@@ -479,7 +551,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           @update:model-value="(v) => setPartPos(0, v)"
         />
         <LabSlider
-          :model-value="currentPart.transform.position[1] ?? 0"
+          :model-value="currentPart.bindTransform.position[1] ?? 0"
           :label="t('lab.partY')"
           :min="-1.6"
           :max="1.6"
@@ -488,7 +560,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           @update:model-value="(v) => setPartPos(1, v)"
         />
         <LabSlider
-          :model-value="currentPart.transform.position[2] ?? 0"
+          :model-value="currentPart.bindTransform.position[2] ?? 0"
           :label="t('lab.partZ')"
           :min="-1"
           :max="1"
@@ -497,7 +569,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           @update:model-value="(v) => setPartPos(2, v)"
         />
         <LabSlider
-          :model-value="currentPart.transform.rotation[2] ?? 0"
+          :model-value="currentPart.bindTransform.rotation[2] ?? 0"
           :label="t('lab.partRotZ')"
           :min="-80"
           :max="80"
@@ -737,7 +809,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
     <template v-else-if="tab === 'motion'">
       <h3 class="mt-5 text-sm font-semibold">{{ t('lab.motion') }}</h3>
       <ul class="mt-2 flex flex-col gap-1">
-        <li v-for="id in [...AGENT_MOTION_IDS, ...STATE_MOTION_IDS]" :key="id">
+        <li v-for="id in [...KIRBY_MOTION_IDS, ...AGENT_MOTION_IDS, ...STATE_MOTION_IDS]" :key="id">
           <button
             type="button"
             class="flex w-full cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition"
@@ -762,7 +834,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           class="rounded-lg border border-[var(--line)] p-2"
         >
           <div class="flex items-center justify-between gap-1 text-xs">
-            <span>{{ t(`lab.prim.${p.type}`) }}</span>
+            <span>{{ primLabel(p.type) }}</span>
             <span class="flex gap-1">
               <button type="button" class="cursor-pointer px-1" @click="movePrimitive(i, -1)">↑</button>
               <button type="button" class="cursor-pointer px-1" @click="movePrimitive(i, 1)">↓</button>
@@ -782,7 +854,16 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           <p v-else-if="p.type === 'expression'" class="mt-1 text-xs text-[var(--muted)]">
             {{ t(`expressions.${p.id as ExpressionId}`) }}
           </p>
-          <label v-if="p.type !== 'look'" class="mt-1 flex items-center gap-2 text-xs">
+          <p
+            v-else-if="p.type === 'part.rotate' || p.type === 'part.translate' || p.type === 'part.oscillate'"
+            class="mt-1 text-xs text-[var(--muted)]"
+          >
+            {{ partLabel(p.part) }} · {{ p.axis.toUpperCase() }}
+          </p>
+          <label
+            v-if="p.type !== 'look' && p.type !== 'part.oscillate'"
+            class="mt-1 flex items-center gap-2 text-xs"
+          >
             <span class="text-[var(--muted)]">{{ t('lab.duration') }}</span>
             <input
               type="number"
@@ -790,7 +871,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
               max="10"
               step="0.1"
               class="w-16 rounded border border-[var(--line)] px-1 py-0.5"
-              :value="p.duration ?? ''"
+              :value="primitiveDuration(p)"
               @change="
                 setPrimitiveDuration(i, Number(($event.target as HTMLInputElement).value) || 0.6)
               "
@@ -811,6 +892,30 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           @click="addPrimitive"
         >
           {{ t('lab.addState') }}
+        </button>
+      </div>
+      <p class="mt-3 text-xs text-[var(--muted)]">{{ t('lab.partMotionHint') }}</p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <select
+          v-model="addPartId"
+          class="rounded-lg border border-[var(--line)] px-2 py-1 text-xs"
+        >
+          <option v-for="id in partTargets()" :key="id" :value="id">{{ partLabel(id) }}</option>
+        </select>
+        <select
+          v-model="addPartKind"
+          class="rounded-lg border border-[var(--line)] px-2 py-1 text-xs"
+        >
+          <option value="part.oscillate">{{ t('lab.prim.oscillate') }}</option>
+          <option value="part.rotate">{{ t('lab.prim.rotate') }}</option>
+          <option value="part.translate">{{ t('lab.prim.translate') }}</option>
+        </select>
+        <button
+          type="button"
+          class="cursor-pointer rounded-lg border border-[var(--line)] px-2 py-1 text-xs hover:bg-black/5"
+          @click="addPartPrimitive"
+        >
+          {{ t('lab.addPartStep') }}
         </button>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">

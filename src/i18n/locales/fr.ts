@@ -204,6 +204,8 @@ export default {
     jsonError: 'JSON illisible : ce n’est pas un personnage.',
     primitives: 'Primitives',
     addState: 'Ajouter un état',
+    addPartStep: 'Ajouter un geste',
+    partMotionHint: 'Les gestes visent une main, en plus de l’état. Les deux bras peuvent bouger en même temps.',
     duration: 'Durée',
     sendToTimeline: 'Ouvrir dans Animations',
     play: 'Jouer',
@@ -221,7 +223,11 @@ export default {
       speak: 'Parole',
       error: 'Erreur',
       done: 'Terminé',
-      sleep: 'Veille'
+      sleep: 'Veille',
+      wave: 'Vague',
+      hand: 'Main au visage',
+      celebrate: 'Célébrer',
+      clap: 'Applaudir'
     },
     events: {
       idle: 'Repos',
@@ -237,7 +243,10 @@ export default {
       state: 'État',
       expression: 'Expression',
       look: 'Regard',
-      hold: 'Pause'
+      hold: 'Pause',
+      rotate: 'Rotation',
+      translate: 'Translation',
+      oscillate: 'Oscillation'
     }
   },
 

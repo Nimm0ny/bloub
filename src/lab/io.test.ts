@@ -18,7 +18,9 @@ describe('export / import de personnage', () => {
     const applied = applyCharacter(defaultDraft(), back!)
     expect(applied.parts).toHaveLength(2)
     expect(applied.shapeId).toBe('cercle')
-    expect(applied.parts[0]?.transform.position[0]).toBeCloseTo(KIRBY_PARTS[0]!.transform.position[0])
+    expect(applied.parts[0]?.bindTransform.position[0]).toBeCloseTo(
+      KIRBY_PARTS[0]!.bindTransform.position[0]
+    )
   })
 
   it('refuse un JSON qui n est pas le format bloub', () => {

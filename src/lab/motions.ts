@@ -1,6 +1,16 @@
 import { clampDuration, makeBlock, type Block } from '@/bot/cycles'
+import { TAU, clamp, easings, lerp } from '@/bot/math'
 import { SEQUENCE, STATE_BY_ID, type StateId } from '@/bot/states'
-import type { MotionDef, MotionPrimitive, MotionSample } from './types'
+import type { PartPose, Vec3 } from '@/bot/parts'
+import type { MotionDef, MotionPrimitive, MotionSample, PartAxis } from './types'
+
+const AXIS: Record<PartAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 }
+
+function isPartPrimitive(
+  p: MotionPrimitive
+): p is Extract<MotionPrimitive, { type: 'part.rotate' | 'part.translate' | 'part.oscillate' }> {
+  return p.type === 'part.rotate' || p.type === 'part.translate' || p.type === 'part.oscillate'
+}
 
 function stateDuration(state: StateId, asked?: number): number {
   const fallback = STATE_BY_ID.get(state)?.duration ?? 2
@@ -8,6 +18,7 @@ function stateDuration(state: StateId, asked?: number): number {
 }
 
 export function durationOfPrimitive(p: MotionPrimitive, current: StateId = 'idle'): number {
+  if (isPartPrimitive(p)) return 0
   if (p.type === 'state') return stateDuration(p.state, p.duration)
   if (p.type === 'hold') return stateDuration(current, p.duration)
   if (p.type === 'expression') return stateDuration(current, p.duration ?? 0.45)
@@ -26,8 +37,8 @@ export function durationOfMotion(def: MotionDef): number {
 
 /**
  * Convertit un mouvement en montage du lecteur existant. Les primitives qui ne
- * sont pas un etat (expression, regard, pause) allongent l'etat courant : le
- * moteur d'origine ne sait jouer que des blocs d'etats.
+ * sont pas un etat (expression, regard, pause, pieces) allongent l'etat courant
+ * ou n'ajoutent rien : le moteur d'origine ne sait jouer que des blocs d'etats.
  */
 export function motionToBlocks(def: MotionDef): Block[] {
   const blocks: Block[] = []
@@ -44,6 +55,7 @@ export function motionToBlocks(def: MotionDef): Block[] {
   }
 
   for (const p of def.primitives) {
+    if (isPartPrimitive(p)) continue
     if (p.type === 'state') {
       current = p.state
       push(current, p.duration ?? STATE_BY_ID.get(current)?.duration ?? 2)
@@ -52,6 +64,43 @@ export function motionToBlocks(def: MotionDef): Block[] {
     }
   }
   return blocks.length ? blocks : [makeBlock('idle')]
+}
+
+function ensurePose(bag: Record<string, PartPose>, id: string): PartPose {
+  const cur = bag[id] ?? (bag[id] = {})
+  return cur
+}
+
+function setRot(bag: Record<string, PartPose>, id: string, axis: PartAxis, value: number) {
+  const p = ensurePose(bag, id)
+  const rot: Vec3 = p.rotation ? [...p.rotation] : [0, 0, 0]
+  rot[AXIS[axis]] = value
+  p.rotation = rot
+}
+
+function setPos(bag: Record<string, PartPose>, id: string, axis: PartAxis, value: number) {
+  const p = ensurePose(bag, id)
+  const pos: Vec3 = p.position ? [...p.position] : [0, 0, 0]
+  pos[AXIS[axis]] = value
+  p.position = pos
+}
+
+function overlayParts(def: MotionDef, t: number): Record<string, PartPose> {
+  const bag: Record<string, PartPose> = {}
+  for (const p of def.primitives) {
+    if (p.type === 'part.oscillate') {
+      setRot(bag, p.part, p.axis, p.center + p.amplitude * Math.sin(t * TAU * p.frequency))
+    } else if (p.type === 'part.rotate') {
+      const d = Math.max(p.duration ?? 0.28, 1e-4)
+      const k = easings.easeOutQuint(clamp(t / d))
+      setRot(bag, p.part, p.axis, lerp(p.from, p.to, k))
+    } else if (p.type === 'part.translate') {
+      const d = Math.max(p.duration ?? 0.28, 1e-4)
+      const k = easings.easeOutQuint(clamp(t / d))
+      setPos(bag, p.part, p.axis, lerp(p.from, p.to, k))
+    }
+  }
+  return bag
 }
 
 export function sampleMotion(def: MotionDef, t: number): MotionSample {
@@ -70,6 +119,7 @@ export function sampleMotion(def: MotionDef, t: number): MotionSample {
   let current: StateId = 'idle'
 
   for (const p of def.primitives) {
+    if (isPartPrimitive(p)) continue
     const d = durationOfPrimitive(p, current)
     if (p.type === 'state') {
       current = p.state
@@ -80,11 +130,11 @@ export function sampleMotion(def: MotionDef, t: number): MotionSample {
       look = { yaw: p.yaw, pitch: p.pitch, mix: p.mix ?? 1, spin: 0, wander: 0 }
     }
     if (local < acc + d) {
-      return { state, expressionId, look }
+      return { state, expressionId, look, parts: overlayParts(def, local) }
     }
     acc += d
   }
-  return { state, expressionId, look }
+  return { state, expressionId, look, parts: overlayParts(def, local) }
 }
 
 function wrapState(id: StateId, loop = false): MotionDef {
@@ -98,7 +148,7 @@ function wrapState(id: StateId, loop = false): MotionDef {
 
 /**
  * Catalogue de mouvements. Chaque etat du SEQUENCE a son enveloppe, plus les
- * mouvements d'agent (rest / notice / think / write / …) qui composent.
+ * mouvements d'agent, plus les motions de pieces (vague, main au visage).
  */
 export const MOTION_CATALOG: MotionDef[] = [
   wrapState('idle', true),
@@ -154,6 +204,107 @@ export const MOTION_CATALOG: MotionDef[] = [
     name: 'sleep',
     loop: true,
     primitives: [{ type: 'state', state: 'sleep' }]
+  },
+  {
+    id: 'wave',
+    name: 'wave',
+    loop: true,
+    primitives: [
+      { type: 'state', state: 'idle' },
+      {
+        type: 'part.oscillate',
+        part: 'arm-left',
+        axis: 'z',
+        center: 0,
+        amplitude: -25,
+        frequency: 2
+      },
+      {
+        type: 'part.oscillate',
+        part: 'arm-right',
+        axis: 'z',
+        center: 0,
+        amplitude: 25,
+        frequency: 2
+      }
+    ]
+  },
+  {
+    id: 'hand',
+    name: 'hand',
+    loop: true,
+    primitives: [
+      { type: 'expression', id: 'attentif', duration: 0.45 },
+      { type: 'state', state: 'idle' },
+      { type: 'part.rotate', part: 'arm-left', axis: 'z', from: 0, to: 42, duration: 0.45 },
+      { type: 'part.translate', part: 'arm-left', axis: 'x', from: 0, to: 0.23, duration: 0.45 },
+      { type: 'part.translate', part: 'arm-left', axis: 'y', from: 0, to: -0.18, duration: 0.45 }
+    ]
+  },
+  {
+    id: 'celebrate',
+    name: 'celebrate',
+    loop: true,
+    primitives: [
+      { type: 'state', state: 'idle' },
+      { type: 'expression', id: 'heureux', duration: 0.45 },
+      {
+        type: 'part.oscillate',
+        part: 'arm-left',
+        axis: 'z',
+        center: -32,
+        amplitude: 14,
+        frequency: 1.5
+      },
+      {
+        type: 'part.oscillate',
+        part: 'arm-right',
+        axis: 'z',
+        center: 32,
+        amplitude: 14,
+        frequency: 1.5
+      }
+    ]
+  },
+  {
+    id: 'clap',
+    name: 'clap',
+    loop: true,
+    primitives: [
+      { type: 'state', state: 'idle' },
+      {
+        type: 'part.oscillate',
+        part: 'arm-left',
+        axis: 'z',
+        center: 20,
+        amplitude: 16,
+        frequency: 2
+      },
+      {
+        type: 'part.oscillate',
+        part: 'arm-right',
+        axis: 'z',
+        center: -20,
+        amplitude: 16,
+        frequency: 2
+      },
+      {
+        type: 'part.translate',
+        part: 'arm-left',
+        axis: 'x',
+        from: 0,
+        to: 0.22,
+        duration: 0.2
+      },
+      {
+        type: 'part.translate',
+        part: 'arm-right',
+        axis: 'x',
+        from: 0,
+        to: -0.22,
+        duration: 0.2
+      }
+    ]
   }
 ]
 

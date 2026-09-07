@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BotEngine } from './engine'
 import {
   KIRBY_PARTS,
+  composePart,
   defaultPart,
   parsePart,
   parsePartsList,
@@ -34,8 +35,8 @@ describe('primitives de pieces', () => {
   it('projette une sphere en cercle de rayon attendu', () => {
     const part = defaultPart('ellipsoid', 'ball')
     part.primitive = { type: 'ellipsoid', size: [0.5, 0.5, 0.5] }
-    part.transform.position = [0, 0, -0.1]
-    part.transform.rotation = [0, 0, 0]
+    part.bindTransform.position = [0, 0, -0.1]
+    part.bindTransform.rotation = [0, 0, 0]
     const { back } = projectParts([part], { scale: 100, offX: 0, offY: 0, alpha: 1 })
     expect(back).toHaveLength(1)
     const f = footprint(back[0]!.path)
@@ -63,8 +64,8 @@ describe('primitives de pieces', () => {
 
   it('une capsule produit un trait plus long que large', () => {
     const part = defaultPart('capsule', 'limb')
-    part.transform.position = [0, 0, 0.1]
-    part.transform.rotation = [0, 0, 0]
+    part.bindTransform.position = [0, 0, 0.1]
+    part.bindTransform.rotation = [0, 0, 0]
     const { front } = projectParts([part], { scale: 100, offX: 0, offY: 0, alpha: 1 })
     const f = footprint(front[0]!.path)
     expect(f.w).toBeGreaterThan(f.h)
@@ -129,5 +130,95 @@ describe('moteur avec pieces', () => {
     const f = e.sample(0.8)
     expect(f.partsBack).toEqual([])
     expect(f.partsFront).toEqual([])
+  })
+})
+
+describe('invariants du rig', () => {
+  function core(f: ReturnType<BotEngine['sample']>) {
+    const { partsBack: _b, partsFront: _f, ...rest } = f
+    return rest
+  }
+
+  it('parts vides : sample identique au moteur nu', () => {
+    const nu = new BotEngine(100, 'idle')
+    const vide = new BotEngine(100, 'idle')
+    vide.setParts([])
+    for (const t of [0, 0.4, 1.2, 2.7]) {
+      expect(core(vide.sample(t))).toEqual(core(nu.sample(t)))
+    }
+  })
+
+  it('Kirby ne change pas le bodyPath du repos', () => {
+    const nu = new BotEngine(100, 'idle')
+    const k = new BotEngine(100, 'idle')
+    k.setParts(KIRBY_PARTS)
+    expect(k.sample(0.5).bodyPath).toBe(nu.sample(0.5).bodyPath)
+  })
+
+  it('offX/offY deplacent ellipsoid, capsule et radial ensemble', () => {
+    const kinds = ['ellipsoid', 'capsule', 'radial'] as const
+    for (const kind of kinds) {
+      const p = defaultPart(kind, kind)
+      p.bindTransform.position = [0.4, 0.1, -0.05]
+      const a = projectParts([p], { scale: 100, offX: 0, offY: 0, alpha: 1 })
+      const b = projectParts([p], { scale: 100, offX: 0.2, offY: 0.1, alpha: 1 })
+      const fa = footprint((a.back[0] ?? a.front[0])!.path)
+      const fb = footprint((b.back[0] ?? b.front[0])!.path)
+      expect(fb.cx - fa.cx, kind).toBeCloseTo(20, 0)
+      expect(fb.cy - fa.cy, kind).toBeCloseTo(10, 0)
+    }
+  })
+
+  it('la pose s ajoute au bind, elle ne le remplace pas', () => {
+    const p = defaultPart('ellipsoid', 'arm')
+    p.bindTransform.rotation = [0, 0, 15]
+    const w = composePart(p, { rotation: [0, 0, 25] })
+    expect(w.rotation[2]).toBeCloseTo(40, 5)
+  })
+
+  it('l ancre s ajoute au bind, elle ne le remplace pas', () => {
+    const p = defaultPart('ellipsoid', 'hand')
+    p.anchor = { parent: 'body', spherical: { yaw: 90, pitch: 0, radius: 1 } }
+    p.bindTransform.position = [0.12, 0, 0]
+    const w = composePart(p)
+    expect(w.position[0]).toBeCloseTo(1.12, 5)
+    expect(w.position[2]).toBeCloseTo(0, 5)
+  })
+
+  it('une rotation Z continue ne produit pas de NaN', () => {
+    const p = defaultPart('ellipsoid', 'spin')
+    const widths: number[] = []
+    for (const z of [0, 20, 40, 60]) {
+      p.bindTransform.rotation = [0, 0, z]
+      const { back, front } = projectParts([p], { scale: 100, offX: 0, offY: 0, alpha: 1 })
+      const path = (back[0] ?? front[0])!.path
+      expect(path.includes('NaN')).toBe(false)
+      widths.push(footprint(path).w)
+    }
+    expect(widths[0]).not.toBe(widths[2])
+  })
+
+  it('le passage de Z negatif a positif change de couche sans saut de position', () => {
+    const p = defaultPart('ellipsoid', 'flip')
+    p.bindTransform.position = [0.5, 0, -0.01]
+    const behind = projectParts([p], { scale: 100, offX: 0, offY: 0, alpha: 1 })
+    p.bindTransform.position = [0.5, 0, 0.01]
+    const ahead = projectParts([p], { scale: 100, offX: 0, offY: 0, alpha: 1 })
+    expect(behind.back).toHaveLength(1)
+    expect(ahead.front).toHaveLength(1)
+    const a = footprint(behind.back[0]!.path)
+    const b = footprint(ahead.front[0]!.path)
+    expect(Math.abs(a.cx - b.cx)).toBeLessThan(0.5)
+    expect(Math.abs(a.cy - b.cy)).toBeLessThan(0.5)
+  })
+
+  it('sample ne depend pas de l ordre des lectures', () => {
+    const e = new BotEngine(100, 'idle')
+    e.setParts(KIRBY_PARTS)
+    e.sample(1.4)
+    const mid = e.sample(0.5).partsBack[0]!.path
+    const other = new BotEngine(100, 'idle')
+    other.setParts(KIRBY_PARTS)
+    expect(other.sample(0.5).partsBack[0]!.path).toBe(mid)
   })
 })

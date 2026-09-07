@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame, type Look } from '@/bot/engine'
-import type { PartDef } from '@/bot/parts'
+import type { PartDef, PartPose } from '@/bot/parts'
 import { clamp, easings } from '@/bot/math'
 import { t } from '@/i18n'
 import { lookTarget, TURN_TIME, type GazeScript } from '@/ui/gaze'
@@ -75,6 +75,8 @@ const props = withDefaults(
     liveRadii?: number[] | null
     /** Pieces secondaires du laboratoire (bras, oreilles…). */
     liveParts?: PartDef[] | null
+    /** Pose animee des pieces, par-dessus le bind. */
+    livePartPoses?: Record<string, PartPose> | null
   }>(),
   {
     size: 320,
@@ -89,7 +91,8 @@ const props = withDefaults(
     liveExpression: null,
     liveLook: null,
     liveRadii: null,
-    liveParts: null
+    liveParts: null,
+    livePartPoses: null
   }
 )
 
@@ -457,6 +460,15 @@ watch(
   () => props.liveParts,
   (parts) => {
     engine.setParts(parts ?? [])
+    redrawFrozen()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.livePartPoses,
+  (poses) => {
+    engine.setPartPoses(poses)
     redrawFrozen()
   },
   { immediate: true }
