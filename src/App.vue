@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
+import AvatarLab from '@/components/AvatarLab.vue'
 import BloubBot from '@/components/BloubBot.vue'
 import ExportBar from '@/components/ExportBar.vue'
 import CycleDialog from '@/components/CycleDialog.vue'
@@ -49,11 +50,16 @@ import {
   blocksWith,
   defaultCycle,
   makeBlock,
+  nextCycleId,
   parseCycles,
   totalDuration,
+  uniqueName,
+  type Block,
   type Cycle
 } from '@/bot/cycles'
-import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
+import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID, type BotExpression } from '@/bot/expressions'
+import type { Look } from '@/bot/engine'
+import { cloneParts, parsePartsList, type PartDef } from '@/bot/parts'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
 import { POSES, SEQUENCE, STATES, type StateId } from '@/bot/states'
 
@@ -362,6 +368,7 @@ const ENTREE_CALME = [makeBlock('idle')]
 const played = computed(() => {
   if (intro.value) return INTRO
   if (view.value === 'animations') return cycle.value.blocks
+  if (view.value === 'lab') return labCycle.value?.length ? labCycle.value : REST
   if (view.value !== 'reglages') return REST
   return calme.value ? ENTREE_CALME : ENTREE
 })
@@ -384,6 +391,13 @@ watch(view, (now, before) => {
     return
   }
   block.value = 0
+  if (now === 'lab') {
+    labShape.value = shape.value
+    labColor.value = color.value
+    labCycle.value = null
+    playing.value = false
+    return
+  }
   // seuls les reglages jouent quelque chose hors du lecteur : leur orbite d'entree
   playing.value = now === 'reglages'
 })
@@ -447,6 +461,61 @@ const expression = ref(
 watch(shape, (v) => ecris('forme', v))
 watch(color, (v) => ecris('couleur', v))
 watch(expression, (v) => ecris('expression', v))
+
+function lisParts(): PartDef[] {
+  const raw = lis('parts')
+  if (!raw) return []
+  try {
+    return parsePartsList(JSON.parse(raw))
+  } catch {
+    return []
+  }
+}
+
+const parts = ref<PartDef[]>(lisParts())
+watch(
+  parts,
+  (v) => {
+    ecris('parts', JSON.stringify(v))
+  },
+  { deep: true }
+)
+
+/**
+ * Laboratoire : une copie de travail, distincte de l'avatar persiste. Appliquer
+ * recopie vers `shape` / `color` / `expression`. Tant qu'on n'applique pas, le
+ * personnalisateur ne bouge pas.
+ */
+const labShape = ref(shape.value)
+const labColor = ref(color.value)
+const labExpr = ref<BotExpression | null>(null)
+const labLook = ref<Look | null>(null)
+const labRadii = ref<number[] | null>(null)
+const labParts = ref<PartDef[] | null>(null)
+const labCycle = ref<Block[] | null>(null)
+
+function applyLab(next: {
+  shape: string
+  color: string
+  expression: string
+  parts?: PartDef[]
+}) {
+  shape.value = next.shape
+  color.value = next.color
+  expression.value = next.expression
+  if (next.parts) parts.value = cloneParts(next.parts)
+}
+
+function openLabCycle(next: { name: string; blocks: Block[] }) {
+  const neuf: Cycle = {
+    id: nextCycleId(cycles.value),
+    name: uniqueName(next.name, cycles.value),
+    blocks: next.blocks
+  }
+  cycles.value = [...cycles.value, neuf]
+  activeId.value = neuf.id
+  view.value = 'animations'
+}
 
 /**
  * Nom du produit, en capitales pour le grand mot du pied de page. PAS traduit —
@@ -869,9 +938,13 @@ watch(
             v-model:playing="playing"
             :cycle="played"
             :size="preview ? 560 : 440"
-            :shape="forme"
-            :color="color"
+            :shape="view === 'lab' ? labShape : forme"
+            :color="view === 'lab' ? labColor : color"
             :expression="humeur ?? expression"
+            :live-expression="view === 'lab' ? labExpr : null"
+            :live-look="view === 'lab' ? labLook : null"
+            :live-radii="view === 'lab' ? labRadii : null"
+            :live-parts="view === 'lab' ? (labParts ?? parts) : parts"
             :follow="view === 'reglages'"
             :gaze="intro ? INTRO_GAZE : null"
           />
@@ -902,7 +975,7 @@ watch(
           atteignable au clavier.
         -->
         <div
-          v-if="view === 'personnaliser' && !preview"
+          v-if="(view === 'personnaliser' || view === 'lab') && !preview"
           class="barre-export"
           :class="(nue || barreCachee) && 'barre-export--cachee'"
           :inert="nue || barreCachee"
@@ -932,7 +1005,7 @@ watch(
         <!-- Export de l'AVATAR : le GIF est le seul format a demander son fond,
              voir `exporte`. -->
         <GifDialog
-          v-if="view === 'personnaliser' && !preview"
+          v-if="(view === 'personnaliser' || view === 'lab') && !preview"
           v-model:open="dialogueGif"
           v-model:fond="fondGif"
           @confirm="exporte('gif', true)"
@@ -960,10 +1033,33 @@ watch(
               :shape="shape"
               :color="color"
               :expression="expression"
+              :parts="parts"
               :frozen-at="POSES[s.id]"
               @click="addBlock(s.id)"
             />
           </div>
+        </template>
+
+        <!-- laboratoire : pose live, import SVG, mouvements, machine d'etats -->
+        <template v-else-if="view === 'lab'">
+          <AvatarLab
+            :seed-shape="shape"
+            :seed-color="color"
+            :seed-expression="expression"
+            :seed-parts="parts"
+            :block="block"
+            :elapsed="elapsed"
+            v-model:shape="labShape"
+            v-model:color="labColor"
+            v-model:live-expression="labExpr"
+            v-model:live-look="labLook"
+            v-model:live-radii="labRadii"
+            v-model:live-parts="labParts"
+            v-model:lab-cycle="labCycle"
+            v-model:playing="playing"
+            @apply="applyLab"
+            @open-cycle="openLabCycle"
+          />
         </template>
 
         <!-- personnalisation -->
@@ -972,6 +1068,7 @@ watch(
             v-model:shape="shape"
             v-model:color="color"
             v-model:expression="expression"
+            v-model:parts="parts"
           />
         </template>
       </aside>

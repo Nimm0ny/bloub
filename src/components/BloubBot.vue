@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { NOTIF_BLUE } from '@/bot/decor'
-import { BotEngine, type BotFrame } from '@/bot/engine'
+import { BotEngine, type BotFrame, type Look } from '@/bot/engine'
+import type { PartDef } from '@/bot/parts'
 import { clamp, easings } from '@/bot/math'
 import { t } from '@/i18n'
 import { lookTarget, TURN_TIME, type GazeScript } from '@/ui/gaze'
 import {
   DEFAULT_EXPRESSION,
-  EXPRESSION_BY_ID
+  EXPRESSION_BY_ID,
+  type BotExpression
 } from '@/bot/expressions'
 import {
   COLOR_BY_ID,
@@ -55,6 +57,24 @@ const props = withDefaults(
      * ici c'est le script qui decide de tout, y compris de sa duree.
      */
     gaze?: GazeScript | null
+    /**
+     * Expression fournie telle quelle, prioritaire sur l'identifiant. Sert au
+     * laboratoire : les curseurs construisent un visage qui n'est pas (encore)
+     * dans le catalogue.
+     */
+    liveExpression?: BotExpression | null
+    /**
+     * Regard impose, prioritaire sur le suivi du pointeur et le script
+     * d'arrivee. `null` : le moteur reprend sa derive.
+     */
+    liveLook?: Look | null
+    /**
+     * Profil radial fourni, prioritaire sur l'identifiant de forme. Import SVG
+     * du laboratoire.
+     */
+    liveRadii?: number[] | null
+    /** Pieces secondaires du laboratoire (bras, oreilles…). */
+    liveParts?: PartDef[] | null
   }>(),
   {
     size: 320,
@@ -65,7 +85,11 @@ const props = withDefaults(
     frozenAt: undefined,
     cycle: () => defaultCycle().blocks,
     follow: false,
-    gaze: null
+    gaze: null,
+    liveExpression: null,
+    liveLook: null,
+    liveRadii: null,
+    liveParts: null
   }
 )
 
@@ -87,9 +111,16 @@ const elapsed = defineModel<number>('elapsed', { default: 0 })
 const R = RAYON
 const VB = DEMI_VIEWBOX
 
-const shapeRadii = computed(() => SHAPE_BY_ID.get(props.shape)?.radii ?? null)
-const ink = computed(() => COLOR_BY_ID.get(props.color)?.hex ?? '#0a0a0c')
-const expression = computed(() => EXPRESSION_BY_ID.get(props.expression) ?? null)
+const shapeRadii = computed(
+  () => props.liveRadii ?? SHAPE_BY_ID.get(props.shape)?.radii ?? null
+)
+const ink = computed(() => {
+  if (/^#[0-9a-fA-F]{6}$/.test(props.color)) return props.color
+  return COLOR_BY_ID.get(props.color)?.hex ?? '#0a0a0c'
+})
+const expression = computed(
+  () => props.liveExpression ?? EXPRESSION_BY_ID.get(props.expression) ?? null
+)
 
 const engine = new BotEngine(R, state.value, shapeRadii.value, expression.value)
 const frame = shallowRef<BotFrame>(engine.sample(props.frozenAt ?? 0))
@@ -292,6 +323,14 @@ function scriptedGaze(run: GazeScript) {
  * yeux figes la ou il s'est arrete : le moteur GARDE la derniere cible.
  */
 watch(
+  () => props.liveLook,
+  (look) => {
+    engine.setLook(look, clock, SCRIPT_MORPH)
+    redrawFrozen()
+  }
+)
+
+watch(
   () => props.gaze,
   (run) => {
     if (run) {
@@ -336,9 +375,11 @@ function tick(ms: number) {
     }
   }
 
-  // Le suivi prime : les deux ecrivent la meme cible, et l'arrivee est terminee
-  // bien avant qu'une vue a suivi ne s'ouvre.
-  if (props.follow) aim()
+  // Le laboratoire prime : ses curseurs ecrivent la cible, le suivi et le
+  // script d'arrivee ne doivent pas la leur reprendre.
+  if (props.liveLook) {
+    /* deja pose par le watcher, on ne le re-pose pas a chaque image */
+  } else if (props.follow) aim()
   else if (props.gaze) scriptedGaze(props.gaze)
 
   frame.value = engine.sample(clock)
@@ -411,6 +452,15 @@ watch(shapeRadii, (radii) => {
   engine.setShape(radii, clock)
   redrawFrozen()
 })
+
+watch(
+  () => props.liveParts,
+  (parts) => {
+    engine.setParts(parts ?? [])
+    redrawFrozen()
+  },
+  { immediate: true }
+)
 
 watch(expression, (expr) => {
   engine.setExpression(expr, clock)
@@ -554,6 +604,17 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
       />
     </g>
 
+    <!-- pieces derriere le corps : bras de Kirby, oreilles, etc. -->
+    <g :opacity="frame.bodyAlpha">
+      <path
+        v-for="p in frame.partsBack"
+        :key="`pb-${p.id}`"
+        :d="p.path"
+        :fill="ink"
+        :opacity="p.alpha"
+      />
+    </g>
+
     <!-- particules de l'eclatement : elles passent derriere le noyau -->
     <g v-if="frame.dotsBehind">
       <component
@@ -583,6 +644,16 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
       <g :mask="`url(#${maskId})`">
         <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="ink" />
       </g>
+    </g>
+
+    <g :opacity="frame.bodyAlpha">
+      <path
+        v-for="p in frame.partsFront"
+        :key="`pf-${p.id}`"
+        :d="p.path"
+        :fill="ink"
+        :opacity="p.alpha"
+      />
     </g>
 
     <g v-if="!frame.dotsBehind">

@@ -2,11 +2,27 @@
 import BotTile from '@/components/BotTile.vue'
 import { EXPRESSIONS } from '@/bot/expressions'
 import { COLORS, SHAPES } from '@/bot/skins'
+import { computed } from 'vue'
+import { cloneParts, KIRBY_PARTS, type PartDef } from '@/bot/parts'
 import { t } from '@/i18n'
 
 const shape = defineModel<string>('shape', { required: true })
 const color = defineModel<string>('color', { required: true })
 const expression = defineModel<string>('expression', { required: true })
+const parts = defineModel<PartDef[]>('parts', { required: true })
+
+function pickBloub() {
+  parts.value = []
+}
+
+function pickKirby() {
+  shape.value = 'cercle'
+  parts.value = cloneParts(KIRBY_PARTS)
+}
+
+const kirbyOn = computed(() =>
+  parts.value.some((p) => p.id === 'arm-left' || p.id === 'arm-right')
+)
 
 /**
  * Les vignettes sont figees a la meme date que la pose de repos : elles montrent
@@ -17,7 +33,30 @@ const PREVIEW_AT = 1
 
 <template>
   <div>
-    <h2 class="text-sm font-semibold">{{ t('panel.shape') }}</h2>
+    <h2 class="text-sm font-semibold">{{ t('panel.character') }}</h2>
+    <div class="mt-2 grid grid-cols-4 gap-1.5">
+      <BotTile
+        :label="t('characters.bloub')"
+        :selected="!kirbyOn"
+        :shape="shape"
+        :color="color"
+        :expression="expression"
+        :frozen-at="PREVIEW_AT"
+        @click="pickBloub"
+      />
+      <BotTile
+        :label="t('characters.kirby')"
+        :selected="kirbyOn"
+        shape="cercle"
+        :color="color"
+        :expression="expression"
+        :parts="KIRBY_PARTS"
+        :frozen-at="PREVIEW_AT"
+        @click="pickKirby"
+      />
+    </div>
+
+    <h2 class="mt-5 text-sm font-semibold">{{ t('panel.shape') }}</h2>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
       <BotTile
         v-for="s in SHAPES"
@@ -27,6 +66,7 @@ const PREVIEW_AT = 1
         :shape="s.id"
         :color="color"
         :expression="expression"
+        :parts="parts"
         :frozen-at="PREVIEW_AT"
         @click="shape = s.id"
       />
@@ -42,6 +82,7 @@ const PREVIEW_AT = 1
         :shape="shape"
         :color="color"
         :expression="e.id"
+        :parts="parts"
         :frozen-at="PREVIEW_AT"
         @click="expression = e.id"
       />

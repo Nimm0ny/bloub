@@ -19,6 +19,7 @@ const en: typeof fr = {
   rail: {
     nav: 'Sections',
     customize: 'Customise',
+    lab: 'Lab',
     animations: 'Animations',
     settings: 'Settings'
   },
@@ -26,8 +27,14 @@ const en: typeof fr = {
   panel: {
     animations: 'Animation',
     shape: 'Shape',
+    character: 'Character',
     expression: 'Expression',
     color: 'Colour'
+  },
+
+  characters: {
+    bloub: 'bloub',
+    kirby: 'Kirby'
   },
 
   export: {
@@ -112,6 +119,101 @@ const en: typeof fr = {
     creditsAria: 'Jérémy on X, in a new tab',
     github: 'View the project on GitHub',
     githubAria: 'The project repository on GitHub, in a new tab'
+  },
+
+  lab: {
+    title: 'Lab',
+    pose: 'Pose',
+    import: 'Import',
+    motion: 'Motion',
+    agent: 'Agent',
+    body: 'Body',
+    gaze: 'Gaze',
+    eyes: 'Eyes',
+    expression: 'Expression',
+    yaw: 'Yaw',
+    pitch: 'Pitch',
+    roll: 'Roll',
+    split: 'Split',
+    width: 'Width',
+    height: 'Height',
+    tilt: 'Tilt',
+    open: 'Openness',
+    leftEye: 'Left eye',
+    rightEye: 'Right eye',
+    linkEyes: 'Link eyes',
+    freezeGaze: 'Freeze gaze',
+    reset: 'Reset',
+    apply: 'Apply to avatar',
+    parts: 'Parts',
+    partsHint:
+      'Independent volumes, not a second outline. Kirby = a body plus two ellipsoid arms.',
+    kirby: 'Kirby',
+    addEllipsoid: 'Add an ellipsoid',
+    addCapsule: 'Add a capsule',
+    clearParts: 'Remove parts',
+    armLeft: 'Left arm',
+    armRight: 'Right arm',
+    partX: 'X',
+    partY: 'Y',
+    partZ: 'Z',
+    partRotZ: 'Z rotation',
+    partSx: 'Size X',
+    partSy: 'Size Y',
+    custom: 'Custom',
+    svgLabel: 'SVG source',
+    svgHint:
+      'Paste an SVG or pick a file. The largest outline becomes a 64-radius profile.',
+    svgFile: 'Choose a file',
+    svgApply: 'Use as body',
+    svgError: 'Unreadable SVG: no closed outline.',
+    svgOk: '64-point profile ready.',
+    parse: 'Parse',
+    jsonTitle: 'Character JSON',
+    jsonHint:
+      'PNG and SVG are only a picture. Bloub JSON keeps the body and parts (arms, and so on) separate, so you can import them back as they were.',
+    jsonExport: 'Export JSON',
+    jsonImport: 'Import JSON',
+    jsonOk: '“{name}” loaded.',
+    jsonExported: 'JSON downloaded.',
+    jsonError: 'Unreadable JSON: not a character.',
+    primitives: 'Primitives',
+    addState: 'Add a state',
+    duration: 'Duration',
+    sendToTimeline: 'Open in Animations',
+    play: 'Play',
+    stop: 'Stop',
+    loop: 'Loop',
+    removePrimitive: 'Remove',
+    current: 'Visual state',
+    fire: 'Event',
+    motionCycle: 'Lab · {name}',
+    motions: {
+      rest: 'Rest',
+      notice: 'Notice',
+      think: 'Think',
+      write: 'Write',
+      speak: 'Speak',
+      error: 'Error',
+      done: 'Done',
+      sleep: 'Sleep'
+    },
+    events: {
+      idle: 'Idle',
+      notice: 'Notice',
+      think: 'Think',
+      write: 'Write',
+      speak: 'Speak',
+      error: 'Error',
+      done: 'Done',
+      sleep: 'Sleep'
+    },
+    prim: {
+      state: 'State',
+      expression: 'Expression',
+      look: 'Look',
+      hold: 'Hold'
+    }
   },
 
   states: {

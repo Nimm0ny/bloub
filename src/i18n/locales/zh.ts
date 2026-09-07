@@ -24,6 +24,7 @@ const zh: typeof fr = {
   rail: {
     nav: '版块',
     customize: '个性化',
+    lab: '实验室',
     animations: '动画',
     settings: '设置'
   },
@@ -31,8 +32,14 @@ const zh: typeof fr = {
   panel: {
     animations: '动画',
     shape: '形状',
+    character: '角色',
     expression: '表情',
     color: '颜色'
+  },
+
+  characters: {
+    bloub: 'bloub',
+    kirby: 'Kirby'
   },
 
   export: {
@@ -115,6 +122,99 @@ const zh: typeof fr = {
     creditsAria: 'Jérémy 的 X 主页，在新标签页中打开',
     github: '在 GitHub 上查看项目',
     githubAria: '项目的 GitHub 仓库，在新标签页中打开'
+  },
+
+  lab: {
+    title: '实验室',
+    pose: '姿态',
+    import: '导入',
+    motion: '动作',
+    agent: '代理',
+    body: '身体',
+    gaze: '视线',
+    eyes: '眼睛',
+    expression: '表情',
+    yaw: '偏航',
+    pitch: '俯仰',
+    roll: '侧倾',
+    split: '间距',
+    width: '宽度',
+    height: '高度',
+    tilt: '倾斜',
+    open: '开合',
+    leftEye: '左眼',
+    rightEye: '右眼',
+    linkEyes: '双眼联动',
+    freezeGaze: '固定视线',
+    reset: '重置',
+    apply: '应用到头像',
+    parts: '部件',
+    partsHint: '独立体积，不是第二条轮廓。Kirby = 身体 + 两只椭球手臂。',
+    kirby: 'Kirby',
+    addEllipsoid: '添加椭球',
+    addCapsule: '添加胶囊',
+    clearParts: '移除部件',
+    armLeft: '左臂',
+    armRight: '右臂',
+    partX: 'X',
+    partY: 'Y',
+    partZ: 'Z',
+    partRotZ: 'Z 旋转',
+    partSx: '尺寸 X',
+    partSy: '尺寸 Y',
+    custom: '自定义',
+    svgLabel: 'SVG 源',
+    svgHint: '粘贴 SVG 或选择文件。最大的轮廓会变成 64 个半径的剖面。',
+    svgFile: '选择文件',
+    svgApply: '用作身体',
+    svgError: '无法读取 SVG：没有闭合轮廓。',
+    svgOk: '64 点剖面已就绪。',
+    parse: '解析',
+    jsonTitle: '角色 JSON',
+    jsonHint:
+      'PNG 和 SVG 只是画面。bloub 的 JSON 会分开保存身体和部件（手臂等），再导入还是独立的。',
+    jsonExport: '导出 JSON',
+    jsonImport: '导入 JSON',
+    jsonOk: '已载入「{name}」。',
+    jsonExported: 'JSON 已下载。',
+    jsonError: '无法读取 JSON：这不是角色定义。',
+    primitives: '原语',
+    addState: '添加状态',
+    duration: '时长',
+    sendToTimeline: '在动画中打开',
+    play: '播放',
+    stop: '停止',
+    loop: '循环',
+    removePrimitive: '移除',
+    current: '视觉状态',
+    fire: '事件',
+    motionCycle: '实验室 · {name}',
+    motions: {
+      rest: '休息',
+      notice: '注意',
+      think: '思考',
+      write: '书写',
+      speak: '说话',
+      error: '出错',
+      done: '完成',
+      sleep: '休眠'
+    },
+    events: {
+      idle: '空闲',
+      notice: '注意',
+      think: '思考',
+      write: '书写',
+      speak: '说话',
+      error: '出错',
+      done: '完成',
+      sleep: '休眠'
+    },
+    prim: {
+      state: '状态',
+      expression: '表情',
+      look: '视线',
+      hold: '停留'
+    }
   },
 
   states: {

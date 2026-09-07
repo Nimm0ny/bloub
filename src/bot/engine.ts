@@ -13,6 +13,7 @@ import {
   type Silhouette
 } from './shape'
 import { STATE_BY_ID, type Pose, type StateDef, type StateId } from './states'
+import { projectParts, type PartDef, type RenderedPart } from './parts'
 
 export interface RenderedEye {
   d: string
@@ -30,6 +31,12 @@ export interface BotFrame {
   arcs: ArcRender[]
   notif: { x: number; y: number; r: number } | null
   notch: { x: number; y: number; r: number } | null
+  /**
+   * Pieces secondaires (bras, oreilles…). Vides par defaut : le moteur d'origine
+   * n'en a pas. Dessinees avant / apres le corps selon leur Z.
+   */
+  partsBack: RenderedPart[]
+  partsFront: RenderedPart[]
 }
 
 /**
@@ -151,6 +158,15 @@ export class BotEngine {
   private lookAt = -10
   /** duree de rattrapage en cours ; voir `LOOK_MORPH`, sa valeur par defaut */
   private lookMorph = 0.24
+  private parts: PartDef[] = []
+
+  /**
+   * Pieces secondaires. Pas de morph : ce n'est pas une mesure video, c'est un
+   * rig. Un tableau vide (defaut) laisse le rendu identique a l'origine.
+   */
+  setParts(parts: PartDef[]) {
+    this.parts = parts
+  }
 
   /** duree du morph quand on change la forme du corps */
   static readonly SHAPE_MORPH = 0.45
@@ -539,6 +555,19 @@ export class BotEngine {
     const notif = pose.notif ? { x: nx, y: ny, r: pose.notif.r * R } : null
     const notch = pose.notif ? { x: nx, y: ny, r: pose.notif.notch * R } : null
 
+    // Pieces : seulement sur un etat a corps de repos. Ailleurs la silhouette
+    // EST l'animation (point, !, comete) et des bras colles n'auraient plus de
+    // parent.
+    const layered =
+      def.baseBody && this.parts.length
+        ? projectParts(this.parts, {
+            scale: R,
+            offX,
+            offY,
+            alpha: pose.bodyAlpha
+          })
+        : { back: [] as RenderedPart[], front: [] as RenderedPart[] }
+
     return {
       bodyPath,
       bodyAlpha: pose.bodyAlpha,
@@ -551,7 +580,9 @@ export class BotEngine {
         .filter((a) => a.opacity > 0.01)
         .map((a) => arcRender(a.seed, a.t, R, a.id, a.opacity)),
       notif,
-      notch
+      notch,
+      partsBack: layered.back,
+      partsFront: layered.front
     }
   }
 }

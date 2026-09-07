@@ -31,6 +31,7 @@ export default {
   rail: {
     nav: 'Sections',
     customize: 'Personnaliser',
+    lab: 'Laboratoire',
     animations: 'Animations',
     settings: 'Réglages'
   },
@@ -43,8 +44,14 @@ export default {
      */
     animations: 'Animation',
     shape: 'Forme',
+    character: 'Personnage',
     expression: 'Expression',
     color: 'Couleur'
+  },
+
+  characters: {
+    bloub: 'bloub',
+    kirby: 'Kirby'
   },
 
   /**
@@ -137,6 +144,101 @@ export default {
     creditsAria: 'Jérémy sur X, dans un nouvel onglet',
     github: 'Voir le projet sur GitHub',
     githubAria: 'Le dépôt du projet sur GitHub, dans un nouvel onglet'
+  },
+
+  lab: {
+    title: 'Laboratoire',
+    pose: 'Pose',
+    import: 'Import',
+    motion: 'Mouvement',
+    agent: 'Agent',
+    body: 'Corps',
+    gaze: 'Regard',
+    eyes: 'Yeux',
+    expression: 'Expression',
+    yaw: 'Lacet',
+    pitch: 'Tangage',
+    roll: 'Roulis',
+    split: 'Écart',
+    width: 'Largeur',
+    height: 'Hauteur',
+    tilt: 'Inclinaison',
+    open: 'Ouverture',
+    leftEye: 'Œil gauche',
+    rightEye: 'Œil droit',
+    linkEyes: 'Lier les yeux',
+    freezeGaze: 'Figer le regard',
+    reset: 'Réinitialiser',
+    apply: 'Appliquer à l’avatar',
+    parts: 'Pièces',
+    partsHint:
+      'Volumes indépendants, pas un second contour. Kirby = un corps + deux bras ellipsoïdes.',
+    kirby: 'Kirby',
+    addEllipsoid: 'Ajouter un ellipsoïde',
+    addCapsule: 'Ajouter une capsule',
+    clearParts: 'Retirer les pièces',
+    armLeft: 'Bras gauche',
+    armRight: 'Bras droit',
+    partX: 'X',
+    partY: 'Y',
+    partZ: 'Z',
+    partRotZ: 'Rotation Z',
+    partSx: 'Taille X',
+    partSy: 'Taille Y',
+    custom: 'Personnalisé',
+    svgLabel: 'Source SVG',
+    svgHint:
+      'Collez un SVG ou choisissez un fichier. Le plus grand contour devient un profil de 64 rayons.',
+    svgFile: 'Choisir un fichier',
+    svgApply: 'Utiliser comme corps',
+    svgError: 'SVG illisible : aucun contour fermé.',
+    svgOk: 'Profil à 64 points prêt.',
+    parse: 'Analyser',
+    jsonTitle: 'Personnage JSON',
+    jsonHint:
+      'Le PNG et le SVG ne sont qu’une image. Le JSON de bloub garde le corps et les pièces (bras, etc.) séparés, pour les réimporter tels quels.',
+    jsonExport: 'Exporter JSON',
+    jsonImport: 'Importer JSON',
+    jsonOk: '« {name} » chargé.',
+    jsonExported: 'JSON téléchargé.',
+    jsonError: 'JSON illisible : ce n’est pas un personnage.',
+    primitives: 'Primitives',
+    addState: 'Ajouter un état',
+    duration: 'Durée',
+    sendToTimeline: 'Ouvrir dans Animations',
+    play: 'Jouer',
+    stop: 'Arrêter',
+    loop: 'Boucle',
+    removePrimitive: 'Retirer',
+    current: 'État visuel',
+    fire: 'Événement',
+    motionCycle: 'Lab · {name}',
+    motions: {
+      rest: 'Repos',
+      notice: 'Attention',
+      think: 'Réflexion',
+      write: 'Écriture',
+      speak: 'Parole',
+      error: 'Erreur',
+      done: 'Terminé',
+      sleep: 'Veille'
+    },
+    events: {
+      idle: 'Repos',
+      notice: 'Attention',
+      think: 'Réflexion',
+      write: 'Écriture',
+      speak: 'Parole',
+      error: 'Erreur',
+      done: 'Terminé',
+      sleep: 'Veille'
+    },
+    prim: {
+      state: 'État',
+      expression: 'Expression',
+      look: 'Regard',
+      hold: 'Pause'
+    }
   },
 
   states: {
