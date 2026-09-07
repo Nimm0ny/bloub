@@ -13,7 +13,13 @@ import {
   type Silhouette
 } from './shape'
 import { STATE_BY_ID, type Pose, type StateDef, type StateId } from './states'
-import { projectParts, type PartDef, type PartPose, type RenderedPart } from './parts'
+import {
+  projectParts,
+  type PartDef,
+  type PartMotion,
+  type PartPose,
+  type RenderedPart
+} from './parts'
 
 export interface RenderedEye {
   d: string
@@ -160,6 +166,8 @@ export class BotEngine {
   private lookMorph = 0.24
   private parts: PartDef[] = []
   private partPoses: Record<string, PartPose> = {}
+  private partMotion: PartMotion | null = null
+  private partMotionAt = 0
 
   /**
    * Pieces secondaires. Pas de morph : ce n'est pas une mesure video, c'est un
@@ -169,9 +177,24 @@ export class BotEngine {
     this.parts = parts
   }
 
-  /** Pose animee des pieces, par-dessus le bind. Vide = bind seul. */
+  /** Pose figee (interrupt / preview). Prioritaire seulement s'il n'y a pas de motion. */
   setPartPoses(poses: Record<string, PartPose> | null) {
     this.partPoses = poses ?? {}
+  }
+
+  /**
+   * Mouvement de pieces, echantillonne dans `sample(now)`. `now` est l'origine
+   * locale : relire une date passee recalcule la pose, sans dependre de la
+   * derniere frame.
+   */
+  setPartMotion(motion: PartMotion | null, now = 0) {
+    this.partMotion = motion
+    this.partMotionAt = now
+  }
+
+  private partPosesAt(now: number): Record<string, PartPose> {
+    if (this.partMotion) return this.partMotion.sample(now - this.partMotionAt)
+    return this.partPoses
   }
 
   /** duree du morph quand on change la forme du corps */
@@ -571,7 +594,7 @@ export class BotEngine {
             offX,
             offY,
             alpha: pose.bodyAlpha,
-            poses: this.partPoses
+            poses: this.partPosesAt(now)
           })
         : { back: [] as RenderedPart[], front: [] as RenderedPart[] }
 

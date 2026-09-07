@@ -184,6 +184,7 @@ const zh: typeof fr = {
     partMotionHint: '手势叠在状态上，针对一只手。两只手可以同时动。',
     duration: '时长',
     sendToTimeline: '在动画中打开',
+    timelineNoParts: '这个动作包含部件动画，目前的状态时间线存不下。',
     play: '播放',
     stop: '停止',
     loop: '循环',

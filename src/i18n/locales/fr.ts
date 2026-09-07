@@ -208,6 +208,8 @@ export default {
     partMotionHint: 'Les gestes visent une main, en plus de l’état. Les deux bras peuvent bouger en même temps.',
     duration: 'Durée',
     sendToTimeline: 'Ouvrir dans Animations',
+    timelineNoParts:
+      'Ce mouvement anime des pièces. La timeline d’états ne les enregistre pas encore.',
     play: 'Jouer',
     stop: 'Arrêter',
     loop: 'Boucle',

@@ -17,8 +17,10 @@ import { profileFromSvg } from '@/lab/importSvg'
 import { applyCharacter, characterFromDraft, importCharacter, packCharacter } from '@/lab/io'
 import {
   cloneMotion,
+  hasPartTracks,
   MOTION_BY_ID,
   motionToBlocks,
+  partMotionOf,
   sampleMotion
 } from '@/lab/motions'
 import {
@@ -37,6 +39,7 @@ import {
   cloneParts,
   defaultPart,
   type PartDef,
+  type PartMotion,
   type PartPose
 } from '@/bot/parts'
 import { AGENT_EVENTS, DEFAULT_VSM, stepVsm, visualOf } from '@/lab/vsm'
@@ -64,6 +67,7 @@ const liveParts = defineModel<PartDef[] | null>('liveParts', { default: null })
 const livePartPoses = defineModel<Record<string, PartPose> | null>('livePartPoses', {
   default: null
 })
+const livePartMotion = defineModel<PartMotion | null>('livePartMotion', { default: null })
 const labCycle = defineModel<Block[] | null>('labCycle', { default: null })
 const playing = defineModel<boolean>('playing', { required: true })
 
@@ -144,6 +148,7 @@ function pushLive() {
   liveRadii.value = draft.radii
   liveParts.value = cloneParts(draft.parts)
   livePartPoses.value = null
+  livePartMotion.value = null
 }
 
 watch(
@@ -166,7 +171,6 @@ watch([() => props.block, () => props.elapsed, selectedMotion, playing, tab], ()
     if (expr) liveExpression.value = expr
   }
   if (sample.look) liveLook.value = sample.look
-  livePartPoses.value = sample.parts
 })
 
 watch(tab, (now) => {
@@ -325,6 +329,7 @@ function onSvgFile(e: Event) {
 function playMotion(def: MotionDef) {
   selectedMotionId.value = def.id
   labCycle.value = motionToBlocks(def)
+  livePartMotion.value = partMotionOf(def)
   playing.value = true
   if (tab.value !== 'agent') tab.value = 'motion'
 }
@@ -333,12 +338,13 @@ function stopMotion() {
   playing.value = false
   labCycle.value = null
   livePartPoses.value = null
+  livePartMotion.value = null
   pushLive()
 }
 
 function addPrimitive() {
   const m = selectedMotion.value
-  m.primitives = [...m.primitives, { type: 'state', state: addState.value }]
+  m.sequence = [...m.sequence, { type: 'state', state: addState.value }]
 }
 
 function partTargets() {
@@ -351,50 +357,56 @@ function partTargets() {
 function addPartPrimitive() {
   const m = selectedMotion.value
   const part = addPartId.value
-  const extra =
+  const target =
+    addPartKind.value === 'part.translate'
+      ? `${part}.position.y`
+      : `${part}.rotation.z`
+  const duration = Math.max(m.duration, 0.6)
+  const segment =
     addPartKind.value === 'part.oscillate'
       ? {
-          type: 'part.oscillate' as const,
-          part,
-          axis: 'z' as const,
+          at: 0,
+          duration,
+          type: 'oscillate' as const,
           center: 0,
           amplitude: part === 'arm-left' ? -22 : 22,
-          frequency: 2.2
+          cycles: 2
         }
       : addPartKind.value === 'part.rotate'
         ? {
-            type: 'part.rotate' as const,
-            part,
-            axis: 'z' as const,
+            at: 0,
+            duration: 0.35,
             from: 0,
-            to: part === 'arm-left' ? -40 : 40,
-            duration: 0.35
+            to: part === 'arm-left' ? -40 : 40
           }
         : {
-            type: 'part.translate' as const,
-            part,
-            axis: 'y' as const,
+            at: 0,
+            duration: 0.35,
             from: 0,
-            to: -0.16,
-            duration: 0.35
+            to: -0.16
           }
-  m.primitives = [...m.primitives, extra]
+  m.tracks = [...m.tracks, { target, segments: [segment] }]
 }
 
 function removePrimitive(index: number) {
   const m = selectedMotion.value
-  if (m.primitives.length <= 1) return
-  m.primitives = m.primitives.filter((_, i) => i !== index)
+  if (m.sequence.length <= 1) return
+  m.sequence = m.sequence.filter((_, i) => i !== index)
 }
 
 function movePrimitive(index: number, dir: -1 | 1) {
   const m = selectedMotion.value
   const j = index + dir
-  if (j < 0 || j >= m.primitives.length) return
-  const next = [...m.primitives]
+  if (j < 0 || j >= m.sequence.length) return
+  const next = [...m.sequence]
   const [cut] = next.splice(index, 1)
   next.splice(j, 0, cut!)
-  m.primitives = next
+  m.sequence = next
+}
+
+function removeTrack(index: number) {
+  const m = selectedMotion.value
+  m.tracks = m.tracks.filter((_, i) => i !== index)
 }
 
 function primLabel(type: string) {
@@ -407,8 +419,8 @@ function primitiveDuration(p: { type: string; duration?: number }) {
 }
 
 function setPrimitiveDuration(index: number, seconds: number) {
-  const p = selectedMotion.value.primitives[index]
-  if (!p || p.type === 'look' || p.type === 'part.oscillate') return
+  const p = selectedMotion.value.sequence[index]
+  if (!p || p.type === 'look') return
   if ('duration' in p) p.duration = seconds
 }
 
@@ -420,8 +432,11 @@ function fire(event: (typeof AGENT_EVENTS)[number]) {
   if (def) playMotion(def)
 }
 
+const timelineBlocked = computed(() => hasPartTracks(selectedMotion.value))
+
 function sendToTimeline() {
   const def = selectedMotion.value
+  if (hasPartTracks(def)) return
   emit('openCycle', {
     name: t('lab.motionCycle', { name: motionLabel(def.id) }),
     blocks: motionToBlocks(def)
@@ -829,7 +844,7 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
       <h3 class="mt-5 text-sm font-semibold">{{ t('lab.primitives') }}</h3>
       <ul class="mt-2 flex flex-col gap-1.5">
         <li
-          v-for="(p, i) in selectedMotion.primitives"
+          v-for="(p, i) in selectedMotion.sequence"
           :key="i"
           class="rounded-lg border border-[var(--line)] p-2"
         >
@@ -854,14 +869,8 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
           <p v-else-if="p.type === 'expression'" class="mt-1 text-xs text-[var(--muted)]">
             {{ t(`expressions.${p.id as ExpressionId}`) }}
           </p>
-          <p
-            v-else-if="p.type === 'part.rotate' || p.type === 'part.translate' || p.type === 'part.oscillate'"
-            class="mt-1 text-xs text-[var(--muted)]"
-          >
-            {{ partLabel(p.part) }} · {{ p.axis.toUpperCase() }}
-          </p>
           <label
-            v-if="p.type !== 'look' && p.type !== 'part.oscillate'"
+            v-if="p.type !== 'look'"
             class="mt-1 flex items-center gap-2 text-xs"
           >
             <span class="text-[var(--muted)]">{{ t('lab.duration') }}</span>
@@ -895,6 +904,22 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
         </button>
       </div>
       <p class="mt-3 text-xs text-[var(--muted)]">{{ t('lab.partMotionHint') }}</p>
+      <ul v-if="selectedMotion.tracks.length" class="mt-2 flex flex-col gap-1.5">
+        <li
+          v-for="(tr, i) in selectedMotion.tracks"
+          :key="tr.target + i"
+          class="flex items-center justify-between rounded-lg border border-[var(--line)] px-2 py-1.5 text-xs"
+        >
+          <span>{{ tr.target }}</span>
+          <button
+            type="button"
+            class="cursor-pointer px-1 text-[var(--danger)]"
+            @click="removeTrack(i)"
+          >
+            ×
+          </button>
+        </li>
+      </ul>
       <div class="mt-2 flex flex-wrap gap-2">
         <select
           v-model="addPartId"
@@ -928,12 +953,16 @@ const TABS: LabTab[] = ['pose', 'import', 'motion', 'agent']
         </button>
         <button
           type="button"
-          class="cursor-pointer rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-xs hover:bg-black/5"
+          class="cursor-pointer rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-xs hover:bg-black/5 disabled:cursor-default disabled:opacity-40"
+          :disabled="timelineBlocked"
           @click="sendToTimeline"
         >
           {{ t('lab.sendToTimeline') }}
         </button>
       </div>
+      <p v-if="timelineBlocked" class="mt-2 text-xs text-[var(--muted)]">
+        {{ t('lab.timelineNoParts') }}
+      </p>
     </template>
 
     <!-- Agent VSM -->

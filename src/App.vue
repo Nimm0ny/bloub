@@ -59,7 +59,7 @@ import {
 } from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID, type BotExpression } from '@/bot/expressions'
 import type { Look } from '@/bot/engine'
-import { cloneParts, parsePartsList, type PartDef, type PartPose } from '@/bot/parts'
+import { cloneParts, parsePartsList, type PartDef, type PartMotion, type PartPose } from '@/bot/parts'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
 import { POSES, SEQUENCE, STATES, type StateId } from '@/bot/states'
 
@@ -493,6 +493,7 @@ const labLook = ref<Look | null>(null)
 const labRadii = ref<number[] | null>(null)
 const labParts = ref<PartDef[] | null>(null)
 const labPartPoses = ref<Record<string, PartPose> | null>(null)
+const labPartMotion = ref<PartMotion | null>(null)
 const labCycle = ref<Block[] | null>(null)
 
 function applyLab(next: {
@@ -947,6 +948,7 @@ watch(
             :live-radii="view === 'lab' ? labRadii : null"
             :live-parts="view === 'lab' ? (labParts ?? parts) : parts"
             :live-part-poses="view === 'lab' ? labPartPoses : null"
+            :live-part-motion="view === 'lab' ? labPartMotion : null"
             :follow="view === 'reglages'"
             :gaze="intro ? INTRO_GAZE : null"
           />
@@ -1058,6 +1060,7 @@ watch(
             v-model:live-radii="labRadii"
             v-model:live-parts="labParts"
             v-model:live-part-poses="labPartPoses"
+            v-model:live-part-motion="labPartMotion"
             v-model:lab-cycle="labCycle"
             v-model:playing="playing"
             @apply="applyLab"

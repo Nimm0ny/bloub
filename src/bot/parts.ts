@@ -44,16 +44,23 @@ export interface PartDef {
 }
 
 /**
- * Pose animee, par-dessus le bind. `rotation` est ABSOLUE (remplace l'axe
- * fourni) ; `position` est un DECALAGE ajoute au bind — c'est ce qui permet
- * « la main sur la sphere, puis 0,12 vers l'exterieur » sans retoucher le
- * personnage.
+ * Delta anime, AJOUTE au bind — pas un angle absolu.
+ * `rotation: [0, 0, 25]` sur un bind a 15 deg donne 40 deg.
  */
 export interface PartPose {
   position?: Vec3
   rotation?: Vec3
   scale?: Vec3
   alpha?: number
+}
+
+/**
+ * Echantillonneur sans horloge : `sample(t)` doit etre une fonction pure du
+ * temps local depuis le debut du mouvement. Le moteur l'appelle dans
+ * `BotEngine.sample(now)`, pas le laboratoire a chaque frame.
+ */
+export interface PartMotion {
+  sample(localTime: number): Record<string, PartPose>
 }
 
 export interface RenderedPart {

@@ -44,42 +44,40 @@ export interface CharacterDef {
  * sans retoucher `states.ts`.
  */
 export type PartAxis = 'x' | 'y' | 'z'
+export type PartChannel = 'rotation' | 'position'
 
+/** Recit : etats, expressions, regard. Ordre = temps. */
 export type MotionPrimitive =
   | { type: 'state'; state: StateId; duration?: number }
   | { type: 'expression'; id: string; duration?: number }
   | { type: 'look'; yaw: number; pitch: number; mix?: number; duration?: number }
   | { type: 'hold'; duration: number }
-  | {
-      type: 'part.rotate'
-      part: string
-      axis: PartAxis
-      from: number
-      to: number
-      duration?: number
-    }
-  | {
-      type: 'part.translate'
-      part: string
-      axis: PartAxis
-      from: number
-      to: number
-      duration?: number
-    }
-  | {
-      type: 'part.oscillate'
-      part: string
-      axis: PartAxis
-      center: number
-      amplitude: number
-      frequency: number
-    }
+
+export interface PartTrackSegment {
+  at: number
+  duration: number
+  type?: 'lerp' | 'oscillate'
+  from?: number
+  to?: number
+  center?: number
+  amplitude?: number
+  /** Cycles entiers sur `duration` : t=0 et t=duration coincident. */
+  cycles?: number
+}
+
+/** Piste d'un membre. `target` : `arm-right.rotation.z` */
+export interface PartTrack {
+  target: string
+  segments: PartTrackSegment[]
+}
 
 export interface MotionDef {
   id: string
   name: string
+  duration: number
   loop: boolean
-  primitives: MotionPrimitive[]
+  sequence: MotionPrimitive[]
+  tracks: PartTrack[]
 }
 
 export type AgentEvent =

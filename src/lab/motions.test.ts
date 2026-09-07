@@ -3,16 +3,18 @@ import { MIN_BLOCK } from '@/bot/cycles'
 import { SEQUENCE, STATE_BY_ID } from '@/bot/states'
 import {
   durationOfMotion,
+  hasPartTracks,
   MOTION_BY_ID,
   MOTION_CATALOG,
   motionToBlocks,
-  sampleMotion
+  sampleMotion,
+  sampleTracks
 } from './motions'
 
 describe('MotionDef', () => {
   it('enveloppe chaque etat du SEQUENCE', () => {
     for (const id of SEQUENCE) {
-      expect(MOTION_BY_ID.get(`state-${id}`)?.primitives[0]).toEqual({ type: 'state', state: id })
+      expect(MOTION_BY_ID.get(`state-${id}`)?.sequence[0]).toEqual({ type: 'state', state: id })
     }
   })
 
@@ -29,8 +31,10 @@ describe('MotionDef', () => {
     const blocks = motionToBlocks({
       id: 'x',
       name: 'x',
+      duration: 0.6,
       loop: false,
-      primitives: [{ type: 'state', state: 'idle', duration: 0.1 }]
+      sequence: [{ type: 'state', state: 'idle', duration: 0.1 }],
+      tracks: []
     })
     expect(blocks[0]!.duration).toBe(MIN_BLOCK)
   })
@@ -62,18 +66,17 @@ describe('MotionDef', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('wave oscille les DEUX bras sans changer d etat', () => {
+  it('wave oscille les DEUX bras, sans couture de boucle', () => {
     const def = MOTION_BY_ID.get('wave')!
-    const a = sampleMotion(def, 0.1)
-    const b = sampleMotion(def, 0.3)
+    const a = sampleMotion(def, 0.15)
+    const b = sampleMotion(def, 0.4)
     expect(a.state).toBe('idle')
-    expect(motionToBlocks(def)[0]!.state).toBe('idle')
     expect(a.parts['arm-left']?.rotation?.[2]).toBeDefined()
     expect(a.parts['arm-right']?.rotation?.[2]).toBeDefined()
     expect(a.parts['arm-right']?.rotation?.[2]).not.toBe(b.parts['arm-right']?.rotation?.[2])
-    expect(Math.sign(a.parts['arm-left']!.rotation![2]!)).not.toBe(
-      Math.sign(a.parts['arm-right']!.rotation![2]!)
-    )
+    const start = sampleTracks(def.tracks, 0)['arm-right']!.rotation![2]!
+    const end = sampleTracks(def.tracks, durationOfMotion(def))['arm-right']!.rotation![2]!
+    expect(Math.abs(start - end)).toBeLessThan(1e-6)
   })
 
   it('hand rapproche le bras GAUCHE du visage en restant sur idle', () => {
@@ -85,12 +88,40 @@ describe('MotionDef', () => {
     expect(s.parts['arm-left']?.position?.[0]).toBeGreaterThan(0.1)
   })
 
-  it('celebrate et clap animent les deux bras', () => {
-    const c = sampleMotion(MOTION_BY_ID.get('celebrate')!, 0.2)
-    const p = sampleMotion(MOTION_BY_ID.get('clap')!, 0.2)
+  it('celebrate affiche heureux des le debut, et clap anime les deux bras', () => {
+    const c = sampleMotion(MOTION_BY_ID.get('celebrate')!, 0.1)
+    expect(c.expressionId).toBe('heureux')
     expect(c.parts['arm-left']).toBeDefined()
     expect(c.parts['arm-right']).toBeDefined()
+    const p = sampleMotion(MOTION_BY_ID.get('clap')!, 0.2)
     expect(p.parts['arm-left']).toBeDefined()
     expect(p.parts['arm-right']).toBeDefined()
+  })
+
+  it('deux segments rotate s enchainent au lieu de se recouvrir', () => {
+    const def: import('./types').MotionDef = {
+      id: 'seq',
+      name: 'seq',
+      duration: 0.6,
+      loop: false,
+      sequence: [{ type: 'state', state: 'idle', duration: 0.6 }],
+      tracks: [
+        {
+          target: 'arm-right.rotation.z',
+          segments: [
+            { at: 0, duration: 0.3, from: 0, to: 50 },
+            { at: 0.3, duration: 0.3, from: 50, to: 0 }
+          ]
+        }
+      ]
+    }
+    const midUp = sampleMotion(def, 0.15).parts['arm-right']!.rotation![2]!
+    const midDown = sampleMotion(def, 0.45).parts['arm-right']!.rotation![2]!
+    expect(midUp).toBeGreaterThan(10)
+    expect(midUp).toBeLessThan(50)
+    expect(midDown).toBeGreaterThan(0)
+    expect(midDown).toBeLessThan(45)
+    expect(hasPartTracks(def)).toBe(true)
+    expect(hasPartTracks(MOTION_BY_ID.get('rest')!)).toBe(false)
   })
 })

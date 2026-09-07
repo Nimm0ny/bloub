@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame, type Look } from '@/bot/engine'
-import type { PartDef, PartPose } from '@/bot/parts'
+import type { PartDef, PartMotion, PartPose } from '@/bot/parts'
 import { clamp, easings } from '@/bot/math'
 import { t } from '@/i18n'
 import { lookTarget, TURN_TIME, type GazeScript } from '@/ui/gaze'
@@ -77,6 +77,8 @@ const props = withDefaults(
     liveParts?: PartDef[] | null
     /** Pose animee des pieces, par-dessus le bind. */
     livePartPoses?: Record<string, PartPose> | null
+    /** Echantillonneur clockless : le moteur l'appelle dans sample(now). */
+    livePartMotion?: PartMotion | null
   }>(),
   {
     size: 320,
@@ -92,7 +94,8 @@ const props = withDefaults(
     liveLook: null,
     liveRadii: null,
     liveParts: null,
-    livePartPoses: null
+    livePartPoses: null,
+    livePartMotion: null
   }
 )
 
@@ -472,6 +475,14 @@ watch(
     redrawFrozen()
   },
   { immediate: true }
+)
+
+watch(
+  () => props.livePartMotion,
+  (motion) => {
+    engine.setPartMotion(motion, clock)
+    redrawFrozen()
+  }
 )
 
 watch(expression, (expr) => {

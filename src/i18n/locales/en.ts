@@ -183,6 +183,8 @@ const en: typeof fr = {
     partMotionHint: 'Gestures target one hand, on top of the state. Both arms can move at once.',
     duration: 'Duration',
     sendToTimeline: 'Open in Animations',
+    timelineNoParts:
+      'This motion animates body parts. The state timeline cannot store that yet.',
     play: 'Play',
     stop: 'Stop',
     loop: 'Loop',

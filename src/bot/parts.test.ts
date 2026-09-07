@@ -221,4 +221,26 @@ describe('invariants du rig', () => {
     other.setParts(KIRBY_PARTS)
     expect(other.sample(0.5).partsBack[0]!.path).toBe(mid)
   })
+
+  it('PartPose animee se recalcule au rewind, sans la pose precedente', () => {
+    const motion = {
+      sample(t: number) {
+        return { 'arm-right': { rotation: [0, 0, t * 40] as [number, number, number] } }
+      }
+    }
+    const e = new BotEngine(100, 'idle')
+    e.setParts(KIRBY_PARTS)
+    e.setPartMotion(motion, 0)
+    e.sample(1.4)
+    const rewound = e.sample(0.5)
+    const fresh = new BotEngine(100, 'idle')
+    fresh.setParts(KIRBY_PARTS)
+    fresh.setPartMotion(motion, 0)
+    expect(rewound.partsBack.find((p) => p.id === 'arm-right')!.path).toBe(
+      fresh.sample(0.5).partsBack.find((p) => p.id === 'arm-right')!.path
+    )
+    expect(rewound.partsBack.find((p) => p.id === 'arm-right')!.path).not.toBe(
+      fresh.sample(1.4).partsBack.find((p) => p.id === 'arm-right')!.path
+    )
+  })
 })
